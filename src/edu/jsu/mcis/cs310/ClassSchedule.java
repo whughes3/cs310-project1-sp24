@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap; // Import this library in order to use a LinkHashMap
 
 public class ClassSchedule {
     
@@ -33,22 +34,131 @@ public class ClassSchedule {
     private final String SUBJECTID_COL_HEADER = "subjectid";
     
     public String convertCsvToJsonString(List<String[]> csv) {
-        
-        return ""; // remove this!
+    JsonArray sectArray = new JsonArray(); // Creates a JsonArray for section
+    LinkedHashMap cNameLinkedMap = new LinkedHashMap<>(); // LinkedHashMap for the course names
+    LinkedHashMap schtypeLinkedMap = new LinkedHashMap<>(); // LinkedHashMap for schedule type
+    LinkedHashMap subLinkedMap = new LinkedHashMap<>(); // LinkedHashMap for the subject
+
+    List csvList = csv; 
+
+    Iterator<String[]> iterator;
+    iterator = csvList.iterator();
+
+    JsonObject csvLineMap;
+    String[] topline = iterator.next();
+
+    while (iterator.hasNext()) {
+    String [] valLine = iterator.next();
+    csvLineMap = new JsonObject();
+
+        for (int i = 0; i < topline.length; i++) {
+            csvLineMap.put(topline[i], valLine[i]);
+        }
+
+        schtypeLinkedMap.put(csvLineMap.get(TYPE_COL_HEADER),csvLineMap.get(SCHEDULE_COL_HEADER));
+
+        String courseName[] = csvLineMap.get(NUM_COL_HEADER).toString().split(" ");
+        subLinkedMap.put(courseName[0], csvLineMap.get(SUBJECT_COL_HEADER));
+
+       LinkedHashMap courseMap = new LinkedHashMap<>();
+       courseMap.put(SUBJECTID_COL_HEADER, courseName[0]);
+       courseMap.put(NUM_COL_HEADER, courseName[1]);
+       courseMap.put(DESCRIPTION_COL_HEADER, csvLineMap.get(DESCRIPTION_COL_HEADER));
+       int credits = Integer.parseInt(csvLineMap.get(CREDITS_COL_HEADER).toString());
+       courseMap.put(CREDITS_COL_HEADER, credits);
+       cNameLinkedMap.put(csvLineMap.get(NUM_COL_HEADER), courseMap);
+
+       LinkedHashMap sectionLinkedMap = new LinkedHashMap<>();
+       int crn = Integer.parseInt(csvLineMap.get(CRN_COL_HEADER).toString());
+       sectionLinkedMap.put(CRN_COL_HEADER, crn);
+       sectionLinkedMap.put(SUBJECTID_COL_HEADER, courseName[0]);
+       sectionLinkedMap.put(NUM_COL_HEADER, courseName[1]);
+       sectionLinkedMap.put(SECTION_COL_HEADER, csvLineMap.get(SECTION_COL_HEADER));
+       sectionLinkedMap.put(TYPE_COL_HEADER, csvLineMap.get(TYPE_COL_HEADER));
+       sectionLinkedMap.put(START_COL_HEADER, csvLineMap.get(START_COL_HEADER));
+       sectionLinkedMap.put(END_COL_HEADER, csvLineMap.get(END_COL_HEADER));
+       sectionLinkedMap.put(DAYS_COL_HEADER, csvLineMap.get(DAYS_COL_HEADER));
+       sectionLinkedMap.put(WHERE_COL_HEADER, csvLineMap.get(WHERE_COL_HEADER));
+       String names = csvLineMap.get(INSTRUCTOR_COL_HEADER).toString();
+       String[] instructorArray = names.split(", ");
+       sectionLinkedMap.put(INSTRUCTOR_COL_HEADER, instructorArray);
+
+       sectArray.add(sectionLinkedMap);
+}
+    
+       JsonObject object = new JsonObject();
+       object.put("scheduletype", schtypeLinkedMap);
+       object.put("subject", subLinkedMap);
+       object.put("course", cNameLinkedMap);
+       object.put("section", sectArray);
+
+       return Jsoner.prettyPrint(object.toJson());
         
     }
     
     public String convertJsonToCsvString(JsonObject json) {
         
-        return ""; // remove this!
+        JsonObject jsonObject = new JsonObject(json);
+        StringWriter swriter = new StringWriter();
         
+        JsonObject scheduleTypeObject = (JsonObject) jsonObject.get("scheduletype");
+        JsonObject subjectObject = (JsonObject) jsonObject.get("subject");
+        JsonObject courseObject = (JsonObject) jsonObject.get("course");
+        
+        JsonArray sectionArray = (JsonArray) jsonObject.get("section");
+        List<String[]>sectionList = new ArrayList<>();
+        
+        String[] top = {CRN_COL_HEADER, SUBJECT_COL_HEADER, NUM_COL_HEADER, DESCRIPTION_COL_HEADER, SECTION_COL_HEADER, 
+        TYPE_COL_HEADER, CREDITS_COL_HEADER,START_COL_HEADER, END_COL_HEADER, DAYS_COL_HEADER, WHERE_COL_HEADER, 
+        SCHEDULE_COL_HEADER, INSTRUCTOR_COL_HEADER};
+        sectionList.add(top);
+        
+        
+        
+        try {
+            for(Object snellen: sectionArray) {
+                JsonObject sectionObject = (JsonObject)snellen;
+                
+                String crn = sectionObject.get(CRN_COL_HEADER).toString();
+                String subject = subjectObject.get(sectionObject.get(SUBJECTID_COL_HEADER)).toString();
+                String courseNum = (sectionObject.get(SUBJECTID_COL_HEADER) + " " + sectionObject.get(NUM_COL_HEADER));
+                
+                HashMap courseNames = (HashMap)courseObject.get(courseNum);
+                String description = courseNames.get(DESCRIPTION_COL_HEADER).toString();
+                String section = sectionObject.get(SECTION_COL_HEADER).toString();
+                String type = sectionObject.get(TYPE_COL_HEADER).toString();
+                String credits = courseNames.get(CREDITS_COL_HEADER).toString();
+                String start = sectionObject.get(START_COL_HEADER).toString();
+                String end = sectionObject.get(END_COL_HEADER).toString();
+                String days = sectionObject.get(DAYS_COL_HEADER).toString();
+                String where = sectionObject.get(WHERE_COL_HEADER).toString();
+                
+                String schedule = scheduleTypeObject.get(type).toString();
+                
+                JsonArray instructArray =(JsonArray) sectionObject.get(INSTRUCTOR_COL_HEADER);
+                String[] instructNames = instructArray.toArray(new String[0]);
+                String instructor = String.join(", ", instructNames);
+                
+                String[] csvLine = {crn, subject, courseNum, description, section, type, credits, start, end, days, 
+                where, schedule, instructor};
+                sectionList.add(csvLine);
+                
+            }
+        try (CSVWriter csvWriter = new CSVWriter(swriter, '\t', '"', '\\', "\n")){
+            csvWriter.writeAll(sectionList);
+        
+            }
+        }
+        catch (Exception e)   {
+            e.printStackTrace();
+        }
+        return swriter.toString();
     }
     
     public JsonObject getJson() {
         
         JsonObject json = getJson(getInputFileData(JSON_FILENAME));
         return json;
-        
     }
     
     public JsonObject getJson(String input) {
